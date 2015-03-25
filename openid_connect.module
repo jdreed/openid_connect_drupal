@@ -274,6 +274,9 @@ function openid_connect_redirect_page($client_name) {
  * Saves user profile information into a user account.
  */
 function openid_connect_save_userinfo($account, $user_profile, $client_name) {
+  if (user_is_anonymous()) {
+    return NULL;
+  }
   $account_wrapper = entity_metadata_wrapper('user', $account);
   $properties = $account_wrapper->getPropertyInfo();
   $properties_skip = _openid_connect_user_properties_to_skip();
@@ -326,6 +329,12 @@ function openid_connect_login_user($sub, &$account, $email, $client_name) {
  * Creates a user indicating sub-id and login provider.
  */
 function openid_connect_create_user($sub, $email, $client_name) {
+  if ($tmp_account = user_load_by_mail($email)) {
+    drupal_set_message(
+      t('A user (@uname) with this e-mail address already exists.  Visit the user's account page to add "@sub" as their OpenID Connect mapping.',
+	array('@sub' => $sub, '@uname' => $tmp_account->name)), 'error');
+    return drupal_anonymous_user();
+  }
   $edit = array(
     'name' => $email,
     'mail' => $email,
