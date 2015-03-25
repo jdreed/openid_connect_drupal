@@ -17,6 +17,20 @@ class OpenIDConnectClientGeneric extends OpenIDConnectClientBase {
     $form = parent::settingsForm();
 
     $default_site = 'https://example.com/oauth2';
+    $form['issuer_uri'] = array(
+      '#title' => t('OpenID Connect issuer'),
+      '#type' => 'textfield',
+      '#default_value' => $this->getSetting('issuer_uri', 'https://example.com'),
+      '#description' => t("The base URI for your OpenID Connect server."),
+    );
+
+    $form['auto_config'] = array(
+      '#title' => t('Fetch provider configuration automatically'),
+      '#type' => 'checkbox',
+      '#default_value' => $this->getSetting('auto_config', 1),
+      '#description' => t("If checked, the values below will be populated automatically, if the server supports it."),
+    );
+
     $form['authorization_endpoint'] = array(
       '#title' => t('Authorization endpoint'),
       '#type' => 'textfield',
@@ -30,10 +44,34 @@ class OpenIDConnectClientGeneric extends OpenIDConnectClientBase {
     $form['userinfo_endpoint'] = array(
       '#title' => t('UserInfo endpoint'),
       '#type' => 'textfield',
-      '#default_value' => $this->getSetting('userinfo_endpoint', $default_site . '/UserInfo'),
+      '#default_value' => $this->getSetting('userinfo_endpoint', $default_site . '/userinfo'),
     );
 
     return $form;
+  }
+
+  /**
+   * Overrides OpenIDConnectClientBase::settingsFormSubmit().
+   */
+  public function settingsFormSubmit($form, &$form_state) {
+    $issuer_uri = $form_state['values']['issuer_uri'];
+    /* Ensure it ends in a slash */
+    $issuer_uri = trim($issuer_uri, '/') . '/';
+    $form_state['values']['issuer_uri'] = $issuer_uri;
+    $cfg_uri = $issuer_uri . '.well-known/openid-configuration';
+    if ($form_state['values']['auto_config']) {
+      $response = drupal_http_request($cfg_uri,
+                                      array('timeout' => '10'));
+      if (!isset($response->error) && $response->code == 200) {
+        $response_data = drupal_json_decode($response->data);
+        $form_state['values']['authorization_endpoint'] = $response_data['authorization_endpoint'];
+        $form_state['values']['token_endpoint'] = $response_data['token_endpoint'];
+        $form_state['values']['userinfo_endpoint'] = $response_data['userinfo_endpoint'];
+      } else {
+        form_set_error('issuer_uri', 'Unable to populate values automatically: ' . $response->error);
+        $form_state['values']['auto_config'] = 0;
+      }
+    }
   }
 
   /**
