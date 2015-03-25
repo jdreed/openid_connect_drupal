@@ -380,6 +380,21 @@ function openid_connect_user_cancel($edit, $account, $method) {
 }
 
 /**
+ * Implements hook_user_update().
+ */
+function openid_connect_user_update(&$edit, &$account, $category) {
+  $enabled_plugins = openid_connect_get_plugins(true);
+  foreach ($enabled_plugins as $plugin) {
+    $formkey = 'openid_connect_sub_' . $plugin['name'];
+    if (array_key_exists($formkey, $edit)) {
+      user_set_authmaps(
+	$account,
+	array('authname_openid_connect_' . $plugin['name'] => trim($edit[$formkey])));
+    }
+  }
+}
+
+/**
  * Implements hook_form_FORM_ID_alter().
  */
 function openid_connect_form_user_profile_form_alter(&$form, &$form_state) {
@@ -388,6 +403,17 @@ function openid_connect_form_user_profile_form_alter(&$form, &$form_state) {
   }
   else {
     $account_form = &$form;
+  }
+
+  $enabled_plugins = openid_connect_get_plugins(true);
+  foreach ($enabled_plugins as $plugin) {
+    $account_form['openid_connect_sub_' . $plugin['name']] = array(
+      '#title' => t('OpenID Connect "sub" mapping for "@name"',
+		    array('@name' => $plugin['name'])),
+      '#type' => 'textfield',
+      '#default_value' => openid_connect_get_user_authname($form['#user']->uid),
+      '#description' => t('The "sub" claim on the OpenID Connect server that identifies this user.  If blank, or incorrect, the user will be unable to login via OpenID Connect.')
+    );
   }
 
   if (openid_connect_get_user_authname($form['#user']->uid)) {
